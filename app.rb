@@ -34,6 +34,15 @@ get "/" do
   { name: "personal_book_tracker", version: "1.0.0" }.to_json
 end
 
+# DX endpoints
+get "/health" do
+  { status: "ok" }.to_json
+end
+
+get "/version" do
+  { version: "1.0.0" }.to_json
+end
+
 post "/users" do
   user = User.new(json_params.slice("name", "email"))
   if user.save
@@ -78,18 +87,41 @@ rescue BookService::Error => e
 end
 
 get "/books" do
-  scope = Book.includes(:author, :tags, :reviews, :reading_sessions)
-  scope = scope.where(status: params["status"]) if params["status"]
-  scope = scope.joins(:author).where("authors.name LIKE ?", "%#{params["author"]}%") if params["author"]
-  scope = scope.where(user_id: params["user_id"]) if params["user_id"]
-  books = scope.order(created_at: :desc)
-  { books: books.map { |b| serialize_book(b) } }.to_json
+  service = BookService.new
+  result = service.query_books(
+    user_id: params["user_id"],
+    status: params["status"],
+    author_q: params["author"],
+    tag: params["tag"],
+    sort: params["sort"],
+    dir: params["dir"],
+    page: params["page"],
+    per_page: params["per_page"]
+  )
+  {
+    books: result[:records].map { |b| serialize_book(b) },
+    meta: result[:meta]
+  }.to_json
 end
 
 get "/books/:id" do
   book = Book.includes(:author, :tags, :reviews, :reading_sessions).find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
   serialize_book(book).to_json
+end
+
+# Authors listing with optional name filter (?q=)
+get "/authors" do
+  scope = Author.all
+  scope = scope.where("name LIKE ?", "%#{params["q"]}%") if params["q"]
+  { authors: scope.order(:name).map { |a| { id: a.id, name: a.name } } }.to_json
+end
+
+# Tags listing with optional name filter (?q=)
+get "/tags" do
+  scope = Tag.all
+  scope = scope.where("name LIKE ?", "%#{params["q"]}%") if params["q"]
+  { tags: scope.order(:name).map { |t| { id: t.id, name: t.name } } }.to_json
 end
 
 patch "/books/:id" do

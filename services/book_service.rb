@@ -25,6 +25,50 @@ class BookService
       total_minutes: ReadingSession.joins(:book).merge(scope).sum(:minutes)
     }
   end
+
+  # Helper to build a filtered/sorted/paginated query for books.
+  # Options (all optional):
+  # - user_id: filter by user
+  # - status: filter by status
+  # - author_q: partial match on author name
+  # - tag: filter by tag name
+  # - sort: one of "title", "created_at" (defaults to created_at)
+  # - dir: "asc" or "desc" (defaults to desc)
+  # - page: integer >= 1 (defaults to 1)
+  # - per_page: integer 1..100 (defaults to 20)
+  def query_books(options = {})
+    scope = Book.includes(:author, :tags, :reviews, :reading_sessions)
+    scope = scope.where(user_id: options[:user_id]) if options[:user_id]
+    scope = scope.where(status: options[:status]) if options[:status]
+    if options[:author_q]
+      scope = scope.joins(:author).where("authors.name LIKE ?", "%#{options[:author_q]}%")
+    end
+    if options[:tag]
+      scope = scope.joins(:tags).where("tags.name = ?", options[:tag])
+    end
+
+    sort = %w[title created_at].include?(options[:sort].to_s) ? options[:sort].to_s : "created_at"
+    dir = options[:dir].to_s.downcase == "asc" ? :asc : :desc
+    scope = scope.order(sort => dir)
+
+    page = options[:page].to_i
+    page = 1 if page <= 0
+    per_page = options[:per_page].to_i
+    per_page = 20 if per_page <= 0
+    per_page = 100 if per_page > 100
+
+    total = scope.count
+    records = scope.offset((page - 1) * per_page).limit(per_page)
+
+    {
+      records: records,
+      meta: {
+        page: page,
+        per_page: per_page,
+        total: total
+      }
+    }
+  end
 end
 
 
