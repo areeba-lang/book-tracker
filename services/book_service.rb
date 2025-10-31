@@ -32,6 +32,7 @@ class BookService
   # - status: filter by status
   # - author_q: partial match on author name
   # - tag: filter by tag name
+  # - q: general search query (searches title and author name)
   # - sort: one of "title", "created_at" (defaults to created_at)
   # - dir: "asc" or "desc" (defaults to desc)
   # - page: integer >= 1 (defaults to 1)
@@ -45,6 +46,14 @@ class BookService
     end
     if options[:tag]
       scope = scope.joins(:tags).where("tags.name = ?", options[:tag])
+    end
+    if options[:q] && !options[:q].to_s.strip.empty?
+      search_term = options[:q].to_s.strip
+      scope = scope.joins(:author).where(
+        "books.title LIKE ? OR authors.name LIKE ?",
+        "%#{search_term}%",
+        "%#{search_term}%"
+      )
     end
 
     sort = %w[title created_at].include?(options[:sort].to_s) ? options[:sort].to_s : "created_at"
