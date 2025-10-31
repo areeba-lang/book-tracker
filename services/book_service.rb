@@ -19,10 +19,58 @@ class BookService
   def stats(user_id: nil)
     scope = Book.all
     scope = scope.where(user_id: user_id) if user_id
+    
+    # Existing stats (backward compatible)
+    total_books = scope.count
+    total_finished = scope.where(status: "finished").count
+    total_minutes = ReadingSession.joins(:book).merge(scope).sum(:minutes) || 0
+    
+    # Status breakdown
+    to_read_count = scope.where(status: "to_read").count
+    reading_count = scope.where(status: "reading").count
+    finished_count = scope.where(status: "finished").count
+    
+    # Rating analytics
+    rated_scope = scope.where("rating > 0")
+    total_rated_books = rated_scope.count
+    average_rating = total_rated_books > 0 ? rated_scope.average(:rating).to_f.round(2) : nil
+    
+    # Rating distribution (1-5)
+    rating_dist = rated_scope.group(:rating).count
+    rating_distribution = {
+      "1" => rating_dist[1] || 0,
+      "2" => rating_dist[2] || 0,
+      "3" => rating_dist[3] || 0,
+      "4" => rating_dist[4] || 0,
+      "5" => rating_dist[5] || 0
+    }
+    
+    # Reading session analytics
+    sessions_scope = ReadingSession.joins(:book).merge(scope)
+    total_reading_sessions = sessions_scope.count
+    avg_session_minutes = total_reading_sessions > 0 ? (sessions_scope.average(:minutes).to_f.round(2)) : nil
+    books_with_sessions = scope.joins(:reading_sessions).distinct.count
+    
     {
-      total_books: scope.count,
-      total_finished: scope.where(status: "finished").count,
-      total_minutes: ReadingSession.joins(:book).merge(scope).sum(:minutes)
+      # Existing stats (backward compatible)
+      total_books: total_books,
+      total_finished: finished_count,
+      total_minutes: total_minutes,
+      
+      # Status breakdown
+      to_read_count: to_read_count,
+      reading_count: reading_count,
+      finished_count: finished_count,
+      
+      # Rating analytics
+      average_rating: average_rating,
+      total_rated_books: total_rated_books,
+      rating_distribution: rating_distribution,
+      
+      # Reading session analytics
+      total_reading_sessions: total_reading_sessions,
+      average_session_minutes: avg_session_minutes,
+      books_with_sessions: books_with_sessions
     }
   end
 
