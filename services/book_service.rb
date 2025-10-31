@@ -16,6 +16,57 @@ class BookService
     Book.create!(**attrs)
   end
 
+  def create_bulk(books_array)
+    results = []
+    successful = 0
+    failed = 0
+
+    books_array.each_with_index do |book_data, index|
+      # Validate using existing validator
+      errors = BookValidator.validate_create(book_data)
+      
+      if errors.empty?
+        begin
+          book = create_with_author(
+            user_id: book_data["user_id"],
+            title: book_data["title"],
+            author_name: book_data["author_name"],
+            status: book_data["status"],
+            rating: book_data["rating"]
+          )
+          results << {
+            success: true,
+            book: BookSerializer.new(book).as_json
+          }
+          successful += 1
+        rescue Error => e
+          results << {
+            success: false,
+            error: e.message,
+            index: index
+          }
+          failed += 1
+        end
+      else
+        results << {
+          success: false,
+          error: errors.join(", "),
+          index: index
+        }
+        failed += 1
+      end
+    end
+
+    {
+      results: results,
+      meta: {
+        total: books_array.length,
+        successful: successful,
+        failed: failed
+      }
+    }
+  end
+
   def stats(user_id: nil)
     scope = Book.all
     scope = scope.where(user_id: user_id) if user_id
