@@ -28,6 +28,20 @@ helpers do
   def serialize_book(book)
     BookSerializer.new(book).as_json
   end
+
+  def require_api_key
+    api_key = ENV["API_KEY"]
+    return if api_key.nil? || api_key.empty?
+
+    # Rack converts headers to HTTP_* format in env (uppercase with underscores)
+    # Check multiple variants to handle different header formats
+    provided_key = env["HTTP_X_API_KEY"] ||
+                   env["X-API-Key"] ||
+                   env["x-api-key"] ||
+                   env["X-Api-Key"]
+    
+    halt 401, { error: "Unauthorized" }.to_json unless provided_key == api_key
+  end
 end
 
 get "/" do
@@ -44,6 +58,7 @@ get "/version" do
 end
 
 post "/users" do
+  require_api_key
   user = User.new(json_params.slice("name", "email"))
   if user.save
     status 201
@@ -55,6 +70,7 @@ post "/users" do
 end
 
 post "/authors" do
+  require_api_key
   author = Author.new(json_params.slice("name"))
   if author.save
     status 201
@@ -66,6 +82,7 @@ post "/authors" do
 end
 
 post "/books" do
+  require_api_key
   payload = json_params
   errors = BookValidator.validate_create(payload)
   halt 422, { error: errors }.to_json unless errors.empty?
@@ -125,6 +142,7 @@ get "/tags" do
 end
 
 patch "/books/:id" do
+  require_api_key
   book = Book.find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
 
@@ -138,6 +156,7 @@ patch "/books/:id" do
 end
 
 delete "/books/:id" do
+  require_api_key
   book = Book.find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
   book.destroy
@@ -146,6 +165,7 @@ delete "/books/:id" do
 end
 
 post "/books/:id/tags" do
+  require_api_key
   book = Book.find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
   names = Array(json_params["names"]).map(&:to_s).map(&:strip).reject(&:empty?)
@@ -158,6 +178,7 @@ post "/books/:id/tags" do
 end
 
 post "/books/:id/reviews" do
+  require_api_key
   book = Book.find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
   review = book.reviews.new(json_params.slice("body", "rating"))
@@ -171,6 +192,7 @@ post "/books/:id/reviews" do
 end
 
 post "/books/:id/reading_sessions" do
+  require_api_key
   book = Book.find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
   minutes = json_params["minutes"].to_i
