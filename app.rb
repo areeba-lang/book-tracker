@@ -110,6 +110,7 @@ get "/books" do
     status: params["status"],
     author_q: params["author"],
     tag: params["tag"],
+    q: params["q"],
     sort: params["sort"],
     dir: params["dir"],
     page: params["page"],
