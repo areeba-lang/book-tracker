@@ -122,6 +122,32 @@ get "/books" do
   }.to_json
 end
 
+get "/books/export" do
+  format = params["format"]
+  user_id = params["user_id"]
+  status = params["status"]
+  tag = params["tag"]
+
+  export_service = ExportService.new
+  result = export_service.export_books(
+    format: format,
+    user_id: user_id,
+    status: status,
+    tag: tag
+  )
+
+  if format.to_s.downcase == "csv"
+    content_type "text/csv"
+    headers "Content-Disposition" => 'attachment; filename="books_export.csv"'
+    result
+  else
+    result.to_json
+  end
+rescue ExportService::Error => e
+  status 400
+  { error: e.message }.to_json
+end
+
 get "/books/:id" do
   book = Book.includes(:author, :tags, :reviews, :reading_sessions).find_by(id: params[:id])
   halt 404, { error: "Not found" }.to_json unless book
