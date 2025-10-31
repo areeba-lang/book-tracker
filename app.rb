@@ -103,6 +103,36 @@ rescue BookService::Error => e
   { error: e.message }.to_json
 end
 
+post "/books/bulk" do
+  require_api_key
+  payload = json_params
+  
+  # Validate books parameter exists and is an array
+  unless payload.key?("books")
+    halt 400, { error: "books parameter is required and must be an array" }.to_json
+  end
+  
+  books_array = payload["books"]
+  
+  unless books_array.is_a?(Array)
+    halt 400, { error: "books must be an array" }.to_json
+  end
+  
+  if books_array.empty?
+    halt 422, { error: "books array cannot be empty" }.to_json
+  end
+  
+  if books_array.length > 100
+    halt 400, { error: "books array cannot exceed 100 items" }.to_json
+  end
+  
+  service = BookService.new
+  result = service.create_bulk(books_array)
+  
+  status 200
+  result.to_json
+end
+
 get "/books" do
   service = BookService.new
   result = service.query_books(
